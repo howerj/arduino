@@ -1,0 +1,8 @@
+*.o
+*.a
+*.eep
+*.elf
+*.hex
+*.txt
+*.log
+*~
