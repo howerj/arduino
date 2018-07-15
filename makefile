@@ -16,25 +16,6 @@ CPP     = ${ARDUINO_DIR}hardware/tools/avr/bin/avr-g++
 AR      = ${ARDUINO_DIR}hardware/tools/avr/bin/avr-ar
 OBJCOPY = ${ARDUINO_DIR}hardware/tools/avr/bin/avr-objcopy
 
-TARGET=test
-
-MAIN_SKETCH = test.cpp
-
-.PHONY: all build mkdebug upload talk
-
-all: build
-
-CPPFLAGS = -c -g -Os -Wall -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106
-CXXFLAGS = ${CPPFLAGS} -fno-exceptions
-CFLAGS   = ${CPPFLAGS}
-
-INCLUDE_FILES = -I${ARDUINO_DIR}hardware/arduino/cores/arduino -I${ARDUINO_DIR}hardware/arduino/variants/standard
-LIBRARY_DIR   = ${ARDUINO_DIR}hardware/arduino/cores/arduino/
-
-
-upload: ${MAIN_SKETCH}.hex
-	avrdude -C ${ARDUINO_DIR}hardware/tools/avrdude.conf -p ${MCU} -c wiring -P ${PORT} -b ${PROGRAM_BAUD} -D -Uflash:w:$^:i 
-
 CORE_CSRC= \
  ${LIBRARY_DIR}avr-libc/malloc.c \
  ${LIBRARY_DIR}avr-libc/realloc.c \
@@ -65,6 +46,24 @@ CORE_CXXOBJS := ${CORE_CPPSRC:%.cpp=%.o}
 CORE_OBJS    := ${CORE_COBJS} ${CORE_CXXOBJS}
 CORE_OBJS    := ${CORE_OBJS:${LIBRARY_DIR}%=%}
 CORE_OBJS    := ${CORE_OBJS:avr-libc/%=%}
+
+TARGET=test
+
+MAIN_SKETCH = test.cpp
+
+.PHONY: all build mkdebug upload talk
+
+all: build
+
+CPPFLAGS = -c -g -Os -Wall -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106
+CXXFLAGS = ${CPPFLAGS} -fno-exceptions
+CFLAGS   = ${CPPFLAGS}
+
+INCLUDE_FILES = -I${ARDUINO_DIR}hardware/arduino/cores/arduino -I${ARDUINO_DIR}hardware/arduino/variants/standard
+LIBRARY_DIR   = ${ARDUINO_DIR}hardware/arduino/cores/arduino/
+
+upload: ${MAIN_SKETCH}.hex
+	avrdude -C ${ARDUINO_DIR}hardware/tools/avrdude.conf -p ${MCU} -c wiring -P ${PORT} -b ${PROGRAM_BAUD} -D -Uflash:w:$^:i 
 
 ${MAIN_SKETCH}.o: ${MAIN_SKETCH}
 	${CPP} ${CXXFLAGS} ${INCLUDE_FILES} $< -o $@
