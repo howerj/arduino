@@ -48,25 +48,30 @@ CORE_OBJS    := ${CORE_OBJS:${LIBRARY_DIR}%=%}
 CORE_OBJS    := ${CORE_OBJS:avr-libc/%=%}
 
 TARGET=test
-
-MAIN_SKETCH = test.cpp
+CSRC := ${TARGET}.cpp image.c embed.c
+OBJS := ${CSRC:%.c=%.o}
+OBJS := ${OBJS:%.cpp=%.o}
 
 .PHONY: all build mkdebug upload talk
 
 all: build
 
-CPPFLAGS = -c -g -Os -Wall -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106
+CPPFLAGS = -c -g -Os -Wall -Wextra -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106 
+#CPPFLAGS = ${CPPFLAGS} -DNDEBUG
 CXXFLAGS = ${CPPFLAGS} -fno-exceptions
-CFLAGS   = ${CPPFLAGS}
+CFLAGS   = ${CPPFLAGS} -std=c99
 
 INCLUDE_FILES = -I${ARDUINO_DIR}hardware/arduino/cores/arduino -I${ARDUINO_DIR}hardware/arduino/variants/standard
 LIBRARY_DIR   = ${ARDUINO_DIR}hardware/arduino/cores/arduino/
 
-upload: ${MAIN_SKETCH}.hex
+upload: ${TARGET}.hex
 	avrdude -C ${ARDUINO_DIR}hardware/tools/avrdude.conf -p ${MCU} -c wiring -P ${PORT} -b ${PROGRAM_BAUD} -D -Uflash:w:$^:i 
 
-${MAIN_SKETCH}.o: ${MAIN_SKETCH}
+%.o: %.cpp
 	${CPP} ${CXXFLAGS} ${INCLUDE_FILES} $< -o $@
+
+%.o: %.c
+	${CC} ${CFLAGS} ${INCLUDE_FILES} $< -o $@
 
 %.o: ${LIBRARY_DIR}%.cpp
 	${CPP} ${CXXFLAGS} ${INCLUDE_FILES} $< -o $@
@@ -81,7 +86,7 @@ core.a: ${CORE_OBJS}
 	rm -fv $@
 	${AR} rcs $@ $^
 
-%.elf: %.o core.a
+%.elf: ${OBJS} core.a
 	${CC} -Os -Wl,--gc-sections -mmcu=${MCU} -o $@ $^ -lm
 
 %.eep: %.elf
@@ -90,7 +95,7 @@ core.a: ${CORE_OBJS}
 %.hex: %.elf %.eep
 	${OBJCOPY} -O ihex -R .eeprom $< $@
 
-build: ${MAIN_SKETCH}.hex 
+build: ${TARGET}.hex 
 
 mkdebug:
 	@echo ${CORE_OBJS}
