@@ -14,6 +14,8 @@ port.
 
 ## Building the test program
 
+### ATMEGA2560
+
 To build:
 
 	make
@@ -26,8 +28,27 @@ To talk to the Arduino (and the eForth interpreter running on it):
 
 	make talk
 
+### ATMEGA328P (Arduino Uno)
+
+To build:
+
+	make MCU=atmega328p
+
+To flash:
+
+	make upload MCU=atmega328p METHOD=arduino
+
+To talk to the Arduino (and the eForth interpreter running on it):
+
+	make talk
+
 Checkout out the [makefile][] for default device setting and for which TTY is
 used.
+
+## Working platforms
+
+* [x] ATMEGA2560
+* [x] ATMEGA328P
 
 [makefile]:  makefile
 

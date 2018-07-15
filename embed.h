@@ -268,10 +268,14 @@ cell_t *embed_core_get(embed_t *h);
  * @return zero on success, negative on failure */
 int embed_eval(embed_t *h, const char *str); 
 
+/**@note This is header shouldn't really be included here, but it needs to be
+ * (at least for now) */
+#include <avr/pgmspace.h>
+
 /**@brief This array contains the default virtual machine image, generated from
  * 'embed-1.blk', which is included in the library. It contains a fully working
  * eForth image */
-extern const uint8_t embed_default_block[];
+extern PROGMEM const uint8_t embed_default_block[];
 
 /**@brief This is size, in bytes, of 'embed_default_block' */
 extern const size_t embed_default_block_size;

@@ -52,8 +52,8 @@ extern "C" {
 			return p->m[0][addr];
 		} else if((addr >= PAGE_SIZE) && (addr < blksz)) {
 			const uint16_t naddr = addr << 1;
-			const uint16_t lo    = embed_default_block[naddr+0];
-			const uint16_t hi    = embed_default_block[naddr+1];
+			const uint16_t lo    = pgm_read_byte(embed_default_block + naddr + 0);
+			const uint16_t hi    = pgm_read_byte(embed_default_block + naddr + 1);
 			return (hi<<8u) | lo;
 		} else if(within(blksz, addr)) {
 			return p->m[1][addr - blksz];
@@ -134,8 +134,8 @@ void loop(void) {
 
 	Serial.println("LOADING DEFAULT IMAGE");
 	for(size_t i = 0; i < (PAGE_SIZE*2); i+=2) {
-		const uint16_t lo = embed_default_block[i+0];
-		const uint16_t hi = embed_default_block[i+1];
+		const uint16_t lo = pgm_read_byte(embed_default_block + i + 0);
+		const uint16_t hi = pgm_read_byte(embed_default_block + i + 1);
 		pages.m[0][i >> 1] = (hi<<8u) | lo;
 	}
 

@@ -6,6 +6,9 @@
 F_CPU = 16000000
 MCU = atmega328p
 MCU = atmega2560
+# 'arduino' for atmega328p, 'wiring' for atmega2560
+METHOD=arduino
+METHOD=wiring
 PORT=/dev/ttyACM0
 PROGRAM_BAUD=115200
 BAUD=9600
@@ -56,16 +59,16 @@ OBJS := ${OBJS:%.cpp=%.o}
 
 all: build
 
-CPPFLAGS = -c -g -Os -Wall -Wextra -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106 
-#CPPFLAGS = ${CPPFLAGS} -DNDEBUG
-CXXFLAGS = ${CPPFLAGS} -fno-exceptions
-CFLAGS   = ${CPPFLAGS} -std=c99
+CPPFLAGS := -c -g -Os -Wall -Wextra -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106 
+CPPFLAGS := ${CPPFLAGS} -DNDEBUG
+CXXFLAGS := ${CPPFLAGS} -fno-exceptions
+CFLAGS   := ${CPPFLAGS} -std=c99
 
 INCLUDE_FILES = -I${ARDUINO_DIR}hardware/arduino/cores/arduino -I${ARDUINO_DIR}hardware/arduino/variants/standard
 LIBRARY_DIR   = ${ARDUINO_DIR}hardware/arduino/cores/arduino/
 
 upload: ${TARGET}.hex
-	avrdude -C ${ARDUINO_DIR}hardware/tools/avrdude.conf -p ${MCU} -c wiring -P ${PORT} -b ${PROGRAM_BAUD} -D -Uflash:w:$^:i 
+	avrdude -C ${ARDUINO_DIR}hardware/tools/avrdude.conf -p ${MCU} -c ${METHOD} -P ${PORT} -b ${PROGRAM_BAUD} -D -Uflash:w:$^:i 
 
 %.o: %.cpp
 	${CPP} ${CXXFLAGS} ${INCLUDE_FILES} $< -o $@
