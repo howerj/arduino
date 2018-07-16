@@ -8,9 +8,11 @@
  *
  * @todo Add callbacks to manipulate the system peripherals (digital I/O,
  * analogue input, and serial).
- * @todo Allow sections of memory to be stored to flash.
- * @todo Disable CRC check for this image to speed up the interpreter?
+ * @todo Allow sections of memory to be stored to flash with a 'embed_sgetc_cb'
  * @todo Yield interpreter when there is no input so we can do other work
+ * @todo Speed up the interpreter, it is currently very slow. This could
+ * be done by removing much of the indirection in the virtual machine,
+ * and disabling the CRC check in the eForth image at start up.
  *
  * References:
  * - <https://www.arduino.cc/en/Reference/EEPROM>
@@ -43,6 +45,78 @@ static inline bool within(cell_t range, cell_t addr) {
 }
 
 extern "C" {
+	static int callback_cb(embed_t *h, void *param) {
+		(void)(param);
+		cell_t op = 0;
+		int status = embed_pop(h, &op);
+		if(status != 0)
+			goto error;
+		switch(op) {
+		case 0: /* Pin Mode */
+		{
+			uint16_t pin = 0, direction = 0;
+			status = embed_pop(h, &pin);
+			if(status != 0)
+				goto error;
+			status = embed_pop(h, &direction);
+			if(status != 0)
+				goto error;
+
+			Serial.write("\npin-mode: ");
+			Serial.print(pin);
+			Serial.write('/');
+			Serial.println(direction);
+
+			pinMode(pin, direction ? (direction & 0x8000 ? INPUT_PULLUP : INPUT) : OUTPUT);
+			break;
+		}
+		case 1: /* Read Pin */
+		{
+			uint16_t pin = 0;
+			status = embed_pop(h, &pin);
+			if(status != 0)
+				goto error;
+
+			Serial.write("\npin-read: ");
+			Serial.println(pin);
+
+			status = embed_push(h, digitalRead(pin) == HIGH ? -1 : 0);
+			break;
+		}
+		case 2: /* Write Pin */
+		{
+			uint16_t pin = 0, on = 0;
+			status = embed_pop(h, &pin);
+			if(status != 0)
+				goto error;
+			status = embed_pop(h, &on);
+			if(status != 0)
+				goto error;
+
+			Serial.write("\npin-set: ");
+			Serial.print(pin);
+			Serial.write('/');
+			Serial.println(on);
+
+			digitalWrite(pin, on ? HIGH : LOW);
+			break;
+		}
+		case 3: /* delay */
+		{
+			uint16_t milliseconds = 0;
+			status = embed_pop(h, &milliseconds);
+			if(status != 0)
+				goto error;
+			delay(milliseconds);
+			break;
+		}
+		default:
+			return 21;
+		}
+
+		error:
+			return status;
+	}
 
 	static cell_t  rom_read_cb(embed_t const * const h, cell_t addr) {
 		pages_t *p = (pages_t*)h->m;
@@ -129,6 +203,7 @@ void loop(void) {
 	h.o.get = serial_getc_cb;
 	h.o.put = serial_putc_cb;
 	h.o.read = rom_read_cb;
+	h.o.callback = callback_cb;
 	h.o.write = rom_write_cb;
 	h.o.options = EMBED_VM_RAW_TERMINAL;
 

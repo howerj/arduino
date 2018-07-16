@@ -50,5 +50,24 @@ used.
 * [x] ATMEGA2560
 * [x] ATMEGA328P
 
+## Projects
+
+* Morse code encoder and decoder
+
+Use a Morse code encoder and decoder as a front end to an eForth interpreter.
+
+* LED light sensor and communications
+
+A Light Emitting Diode (LED) consists of a PN junction which when hit by light
+generates a small current, it is in effect a photodiode as well as a light
+emitting one. This can be used to detect light levels, and even perform two way
+communication over short distances (a few centimeters at a few hundred bits per
+second).
+
+See:
+
+- <https://www.forth-ev.de/filemgmt_data/files/TR2003-35.pdf>
+- <https://www.youtube.com/watch?v=vKneKz1PJCc>
+
 [makefile]:  makefile
 
