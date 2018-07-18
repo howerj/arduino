@@ -45,135 +45,148 @@
 
    @todo Port this to the Arduino and do something useful with it
  */
+#include "morse.h"
+#include <avr/pgmspace.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <ctype.h>
 #include <string.h>
 
-typedef struct {
-	char *encoding;
-	char *description;
-} morse_character_t;
-
 #define MORSE_USE_ABBREVIATED_NUMBERS (0)
-#define MORSE_TABLE_COUNT             (UINT8_MAX)
+#define MORSE_TABLE_COUNT             (128)
 
-static const morse_character_t morse_table[MORSE_TABLE_COUNT] = {
-	['a']  = { "._",     "Letter A, a" },
-	['b']  = { "_...",   "Letter B, b" },
-	['c']  = { "_._.",   "Letter C, c" },
-	['d']  = { "_..",    "Letter D, d" },
-	['e']  = { ".",      "Letter E, e" },
-	['f']  = { ".._.",   "Letter F, f" },
-	['g']  = { "__.",    "Letter G, g" },
-	['h']  = { "....",   "Letter H, h" },
-	['i']  = { "..",     "Letter I, i" },
-	['j']  = { ".___",   "Letter J, j" },
-	['k']  = { "_._",    "Letter K, k" },
-	['l']  = { "._..",   "Letter L, l" },
-	['m']  = { "__",     "Letter M, m" },
-	['n']  = { "_.",     "Letter N, n" },
-	['o']  = { "___",    "Letter O, o" },
-	['p']  = { ".__.",   "Letter P, p" },
-	['q']  = { "__._",   "Letter Q, q" },
-	['r']  = { "._.",    "Letter R, r" },
-	['s']  = { "...",    "Letter S, s" },
-	['t']  = { "_",      "Letter T, t" },
-	['u']  = { ".._",    "Letter U, u" },
-	['v']  = { "..._",   "Letter V, v" },
-	['w']  = { ".__",    "Letter W, w" },
-	['x']  = { "_.._",   "Letter X, x" },
-	['y']  = { "_.__",   "Letter Y, y" },
-	['z']  = { "__..",   "Letter Z, z" },
-	['A']  = { "._",     "Letter A, a" },
-	['B']  = { "_...",   "Letter B, b" },
-	['C']  = { "_._.",   "Letter C, c" },
-	['D']  = { "_..",    "Letter D, d" },
-	['E']  = { ".",      "Letter E, e" },
-	['F']  = { ".._.",   "Letter F, f" },
-	['G']  = { "__.",    "Letter G, g" },
-	['H']  = { "....",   "Letter H, h" },
-	['I']  = { "..",     "Letter I, i" },
-	['J']  = { ".___",   "Letter J, j" },
-	['K']  = { "_._",    "Letter K, k" },
-	['L']  = { "._..",   "Letter L, l" },
-	['M']  = { "__",     "Letter M, m" },
-	['N']  = { "_.",     "Letter N, n" },
-	['O']  = { "___",    "Letter O, o" },
-	['P']  = { ".__.",   "Letter P, p" },
-	['Q']  = { "__._",   "Letter Q, q" },
-	['R']  = { "._.",    "Letter R, r" },
-	['S']  = { "...",    "Letter S, s" },
-	['T']  = { "_",      "Letter T, t" },
-	['U']  = { ".._",    "Letter U, u" },
-	['V']  = { "..._",   "Letter V, v" },
-	['W']  = { ".__",    "Letter W, w" },
-	['X']  = { "_.._",   "Letter X, x" },
-	['Y']  = { "_.__",   "Letter Y, y" },
-	['Z']  = { "__..",   "Letter Z, z" },
+//#define F(X) ((const __flash char[]) { X })
+#define F(X) (X)
+#define MORSE_CHARACTER_LENGTH (7)
+
+/**@todo encode this table more efficiently */
+static const PROGMEM char morse_table[MORSE_TABLE_COUNT][MORSE_CHARACTER_LENGTH] = {
+	['a']  = F("._"), /*     "Letter A, a" */ 
+	['b']  = F("_..."), /*   "Letter B, b" */ 
+	['c']  = F("_._."), /*   "Letter C, c" */ 
+	['d']  = F("_.."), /*    "Letter D, d" */ 
+	['e']  = F("."), /*      "Letter E, e" */ 
+	['f']  = F(".._."), /*   "Letter F, f" */ 
+	['g']  = F("__."), /*    "Letter G, g" */ 
+	['h']  = F("...."), /*   "Letter H, h" */ 
+	['i']  = F(".."), /*     "Letter I, i" */ 
+	['j']  = F(".___"), /*   "Letter J, j" */ 
+	['k']  = F("_._"), /*    "Letter K, k" */ 
+	['l']  = F("._.."), /*   "Letter L, l" */ 
+	['m']  = F("__"), /*     "Letter M, m" */ 
+	['n']  = F("_."), /*     "Letter N, n" */ 
+	['o']  = F("___"), /*    "Letter O, o" */ 
+	['p']  = F(".__."), /*   "Letter P, p" */ 
+	['q']  = F("__._"), /*   "Letter Q, q" */ 
+	['r']  = F("._."), /*    "Letter R, r" */ 
+	['s']  = F("..."), /*    "Letter S, s" */ 
+	['t']  = F("_"), /*      "Letter T, t" */ 
+	['u']  = F(".._"), /*    "Letter U, u" */ 
+	['v']  = F("..._"), /*   "Letter V, v" */ 
+	['w']  = F(".__"), /*    "Letter W, w" */ 
+	['x']  = F("_.._"), /*   "Letter X, x" */ 
+	['y']  = F("_.__"), /*   "Letter Y, y" */ 
+	['z']  = F("__.."), /*   "Letter Z, z" */ 
+	['A']  = F("._"), /*     "Letter A, a" */ 
+	['B']  = F("_..."), /*   "Letter B, b" */ 
+	['C']  = F("_._."), /*   "Letter C, c" */ 
+	['D']  = F("_.."), /*    "Letter D, d" */ 
+	['E']  = F("."), /*      "Letter E, e" */ 
+	['F']  = F(".._."), /*   "Letter F, f" */ 
+	['G']  = F("__."), /*    "Letter G, g" */ 
+	['H']  = F("...."), /*   "Letter H, h" */ 
+	['I']  = F(".."), /*     "Letter I, i" */ 
+	['J']  = F(".___"), /*   "Letter J, j" */ 
+	['K']  = F("_._"), /*    "Letter K, k" */ 
+	['L']  = F("._.."), /*   "Letter L, l" */ 
+	['M']  = F("__"), /*     "Letter M, m" */ 
+	['N']  = F("_."), /*     "Letter N, n" */ 
+	['O']  = F("___"), /*    "Letter O, o" */ 
+	['P']  = F(".__."), /*   "Letter P, p" */ 
+	['Q']  = F("__._"), /*   "Letter Q, q" */ 
+	['R']  = F("._."), /*    "Letter R, r" */ 
+	['S']  = F("..."), /*    "Letter S, s" */ 
+	['T']  = F("_"), /*      "Letter T, t" */ 
+	['U']  = F(".._"), /*    "Letter U, u" */ 
+	['V']  = F("..._"), /*   "Letter V, v" */ 
+	['W']  = F(".__"), /*    "Letter W, w" */ 
+	['X']  = F("_.._"), /*   "Letter X, x" */ 
+	['Y']  = F("_.__"), /*   "Letter Y, y" */ 
+	['Z']  = F("__.."), /*   "Letter Z, z" */ 
 #if MORSE_USE_ABBREVIATED_NUMBERS
-	['0']  = { "_",      "Abbreviated Number 0" }, //(sometimes a long dash is used)
-	['1']  = { "._",     "Abbreviated Number 1" },
-	['2']  = { ".._",    "Abbreviated Number 2" },
-	['3']  = { "..._",   "Abbreviated Number 3" },
-	['4']  = { "...._",  "Abbreviated Number 4" },
-	['5']  = { ".",      "Abbreviated Number 5" },
-	['6']  = { "_....",  "Abbreviated Number 6" },
-	['7']  = { "_...",   "Abbreviated Number 7" },
-	['8']  = { "_..",    "Abbreviated Number 8" },
-	['9']  = { "_.",     "Abbreviated Number 9" },
+	['0']  = F("_"), /*      "Abbreviated Number 0" */  //(sometimes a long dash is used)
+	['1']  = F("._"), /*     "Abbreviated Number 1" */ 
+	['2']  = F(".._"), /*    "Abbreviated Number 2" */ 
+	['3']  = F("..._"), /*   "Abbreviated Number 3" */ 
+	['4']  = F("...._"), /*  "Abbreviated Number 4" */ 
+	['5']  = F("."), /*      "Abbreviated Number 5" */ 
+	['6']  = F("_...."), /*  "Abbreviated Number 6" */ 
+	['7']  = F("_..."), /*   "Abbreviated Number 7" */ 
+	['8']  = F("_.."), /*    "Abbreviated Number 8" */ 
+	['9']  = F("_."), /*     "Abbreviated Number 9" */ 
 #else
-	['0']  = { "_____",  "Number 0" },
-	['1']  = { ".____",  "Number 1" },
-	['2']  = { "..___",  "Number 2" },
-	['3']  = { "...__",  "Number 3" },
-	['4']  = { "...._",  "Number 4" },
-	['5']  = { ".....",  "Number 5" },
-	['6']  = { "_....",  "Number 6" },
-	['7']  = { "__...",  "Number 7" },
-	['8']  = { "___..",  "Number 8" },
-	['9']  = { "____.",  "Number 9" },
+	['0']  = F("_____"), /*  "Number 0" */ 
+	['1']  = F(".____"), /*  "Number 1" */ 
+	['2']  = F("..___"), /*  "Number 2" */ 
+	['3']  = F("...__"), /*  "Number 3" */ 
+	['4']  = F("...._"), /*  "Number 4" */ 
+	['5']  = F("....."), /*  "Number 5" */ 
+	['6']  = F("_...."), /*  "Number 6" */ 
+	['7']  = F("__..."), /*  "Number 7" */ 
+	['8']  = F("___.."), /*  "Number 8" */ 
+	['9']  = F("____."), /*  "Number 9" */ 
 #endif
-	[',']  = { "__..__", "Comma ," },
-	['.']  = { "._._._", "Full stop (period) ." },
-	['?']  = { "..__..", "Question mark ?" },
-	[';']  = { "_._._.", "Semicolon ;" },
-	[':']  = { "___...", "Colon :" }, /*(or division sign)*/
-	['/']  = { "_.._.",  "Slash /" },
-	['-']  = { "_...._", "Dash -" },
-	['\''] = { ".____.", "Apostrophe '" },
-	['"']  = { "._.._.", "Inverted commas \""  },
-	['_']  = { "..__._", "Underline _" },
-	['(']  = { "_.__.",  "Left bracket or parenthesis (" },
-	[')']  = { "_.__._", "Right bracket or parenthesis )" },
-	['=']  = { "_..._",  "Double hyphen = equals sign" },
-	['+']  = { "._._.",  "Addition sign +" },
-	['*']  = { "_.._",   "Multiplication sign *" },
-	['@']  = { ".__._.", "Commercial at @" },
-	['!']  = { "−·−·−−", "Exclamation Point !" },
-	['\n'] = { ".-.-",   "Start new line" },
+	[',']  = F("__..__"), /* "Comma ," */ 
+	['.']  = F("._._._"), /* "Full stop (period) ." */ 
+	['?']  = F("..__.."), /* "Question mark ?" */ 
+	[';']  = F("_._._."), /* "Semicolon ;" */ 
+	[':']  = F("___..."), /* "Colon :" */  /*(or division sign)*/
+	['/']  = F("_.._."), /*  "Slash /" */ 
+	['-']  = F("_...._"), /* "Dash -" */ 
+	['\''] = F(".____."), /* "Apostrophe '" */ 
+	['"']  = F("._.._."), /* "Inverted commas \""  */ 
+	['_']  = F("..__._"), /* "Underline _" */ 
+	['(']  = F("_.__."), /*  "Left bracket or parenthesis (" */ 
+	[')']  = F("_.__._"), /* "Right bracket or parenthesis )" */ 
+	['=']  = F("_..._"), /*  "Double hyphen = equals sign" */ 
+	['+']  = F("._._."), /*  "Addition sign +" */ 
+	['*']  = F("_.._"), /*   "Multiplication sign *" */ 
+	['@']  = F(".__._."), /* "Commercial at @" */ 
+	['!']  = F("_._.__"), /* "Exclamation Point !" */ 
+	['\n'] = F("._._"), /*   "Start new line" */ 
+#ifdef LARGE_TABLE
 	/* <https://en.wikipedia.org/wiki/ISO/IEC_8859-1> */
-	[0XC0] = { ".__._",  "Letter 'A' with accent" },
-	[0XC4] = { "._._",   "Letter 'A' with umlaut" },
-	[0XD1] = { "__.__",  "Letter 'N' with tilde" },
-	[0XC9] = { ".._..",  "Letter 'E' with accent" },
-	[0XD6] = { "___.",   "Letter 'O' with umlaut" },
-	[0XDC] = { "..__",   "Letter 'U' with umlaut" },
+	[0XC0] = F(".__._"), /*  "Letter 'A' with accent" */ 
+	[0XC4] = F("._._"), /*   "Letter 'A' with umlaut" */ 
+	[0XD1] = F("__.__"), /*  "Letter 'N' with tilde" */ 
+	[0XC9] = F(".._.."), /*  "Letter 'E' with accent" */ 
+	[0XD6] = F("___."), /*   "Letter 'O' with umlaut" */ 
+	[0XDC] = F("..__"), /*   "Letter 'U' with umlaut" */ 
+#endif
 };
 
-static int morse_populated(const morse_character_t *mc) {
-	if(mc->encoding == NULL || mc->description == NULL)
+static int morse_populated(char *buffer, size_t length) {
+	if(!length || !buffer[0])
 		return 0;
 	return 1;
 }
 
-const morse_character_t *morse_encode_character(unsigned char c) {
-	const morse_character_t *r = &morse_table[c];
-	if(!morse_populated(r))
-		return NULL;
-	return r;
+int morse_encode_character(unsigned char c, char *buffer, size_t length) {
+	if(length < MORSE_CHARACTER_LENGTH)
+		return -1;
+	if((c & 0x80))
+		return -1;
+
+	for(size_t i = 0; i < length; i++) {
+		char ch = pgm_read_byte(&(morse_table[c][i]));
+		buffer[i] = ch;
+	}
+	
+	if(!morse_populated(buffer, length))
+		return -1;
+	return 0;
 }
 
+#if 0
 int morse_decode_character(const char *s, const char **endptr) {
 	size_t i = 0;
 	char buf[16] = { 0 };
@@ -208,6 +221,7 @@ int morse_decode_character(const char *s, const char **endptr) {
 	
 	return -1;
 }
+#endif
 
 #if 0
 /* character: { { '.' | '_' } { ' ' }x[0-2] }+
@@ -218,37 +232,9 @@ int morse_decode_string(char *buf, size_t length, const char *s) {
 }
 #endif
 
-int morse_print_string(FILE *out, const char *s) {
-	int r = 0;
-	unsigned char c = 0;
-	while((c = *s++)) {
-		if(c == ' ') {
-			const char word_spacing[] = "       ";
-			if(fputs(word_spacing, out) < 0)
-				return -1;
-			r += sizeof(word_spacing);
-		} else {
-			const morse_character_t *mc = morse_encode_character(c);
-			if(!mc)
-				continue;
-			char enc = 0;
-			const char *en = mc->encoding;
-			while((enc = *en++)) {
-				if(fputc(enc,  out) != enc)
-					return -1;
-				if(fputc(' ', out) != ' ')
-					return -1;
-				r += 2;
-			}
-			const char character_spacing[] = "   ";
-			if(fputs(character_spacing, out) < 0)
-				return -1;
-			r += sizeof(character_spacing);
-		}
-	}
-	return r;
-}
+#ifdef MORSE_TEST
 
+#include <stdio.h>
 void test_decode(FILE *out, const char *s) {
 	const char *end = NULL;
 	int ch = morse_decode_character(s, &end);
@@ -277,4 +263,4 @@ int main(int argc, char **argv) {
 	fputc('\n', stdout);
 	return 0;
 }
-
+#endif

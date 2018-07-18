@@ -51,7 +51,7 @@ CORE_OBJS    := ${CORE_OBJS:${LIBRARY_DIR}%=%}
 CORE_OBJS    := ${CORE_OBJS:avr-libc/%=%}
 
 TARGET=test
-CSRC := ${TARGET}.cpp image.c embed.c
+CSRC := ${TARGET}.cpp image.c embed.c morse.c
 OBJS := ${CSRC:%.c=%.o}
 OBJS := ${OBJS:%.cpp=%.o}
 
@@ -62,7 +62,7 @@ all: build
 CPPFLAGS := -c -g -Os -Wall -Wextra -ffunction-sections -fdata-sections -mmcu=${MCU} -DF_CPU=${F_CPU}L -DUSB_VID=null -DUSB_PID=null -DARDUINO=106 
 CPPFLAGS := ${CPPFLAGS} -DNDEBUG
 CXXFLAGS := ${CPPFLAGS} -fno-exceptions
-CFLAGS   := ${CPPFLAGS} -std=c99
+CFLAGS   := ${CPPFLAGS} -std=gnu99
 
 INCLUDE_FILES = -I${ARDUINO_DIR}hardware/arduino/cores/arduino -I${ARDUINO_DIR}hardware/arduino/variants/standard
 LIBRARY_DIR   = ${ARDUINO_DIR}hardware/arduino/cores/arduino/
