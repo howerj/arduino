@@ -21,6 +21,7 @@
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
+#include <avr/eeprom.h>
 #include "embed.h"
 #include "morse.h"
 
@@ -39,7 +40,13 @@ static const uint16_t page_0 = 0x0000;
 /*static const uint16_t page_1 = PAGE_SIZE ;*/
 static const uint16_t page_2 = 0x2000;
 static const uint16_t page_3 = 0x2400;
-static const uint16_t page_4 = (EMBED_CORE_SIZE - PAGE_SIZE);
+
+static const uint16_t page_4 = 0x4000 + (PAGE_SIZE*0);
+static const uint16_t page_5 = 0x4000 + (PAGE_SIZE*1);
+static const uint16_t page_6 = 0x4000 + (PAGE_SIZE*2);
+static const uint16_t page_7 = 0x4000 + (PAGE_SIZE*4);
+
+static const uint16_t page_8 = (EMBED_CORE_SIZE - PAGE_SIZE);
 
 static inline bool within(cell_t range, cell_t addr) {
 	return (addr >= range) && (addr < (range + PAGE_SIZE));
@@ -123,6 +130,7 @@ extern "C" {
 		pages_t *p = (pages_t*)h->m;
 		const uint16_t blksz = embed_default_block_size >> 1;
 
+		/* RAM + ROM */
 		if(within(page_0, addr)) {
 			return p->m[0][addr];
 		} else if((addr >= PAGE_SIZE) && (addr < blksz)) {
@@ -136,9 +144,20 @@ extern "C" {
 			return p->m[2][addr - page_2];
 		} else if(within(page_3, addr)) {
 			return p->m[3][addr - page_3];
-		} else if(within(page_4, addr)) {
-			return p->m[4][addr - page_4];
+		} else if(within(page_8, addr)) {
+			return p->m[4][addr - page_8];
 		}
+
+		if(within(page_4, addr)) {
+			return eeprom_read_word((uint16_t*)((addr - page_4) << 1));
+		} else if(within(page_5, addr)) {
+			return eeprom_read_word((uint16_t*)((addr - page_5) << 1));
+		} else if(within(page_6, addr)) {
+			return eeprom_read_word((uint16_t*)((addr - page_6) << 1));
+		} else if(within(page_7, addr)) {
+			return eeprom_read_word((uint16_t*)((addr - page_7) << 1));
+		}
+		
 		return 0;
 	}
 
@@ -147,6 +166,7 @@ extern "C" {
 
 		const uint16_t blksz = embed_default_block_size >> 1;
 
+		/* RAM + ROM */
 		if(within(page_0, addr)) {
 			p->m[0][addr] = value;
 			return;
@@ -161,10 +181,26 @@ extern "C" {
 		} else if(within(page_3, addr)) {
 			p->m[3][addr - page_3] = value;
 			return;
-		} else if(within(page_4, addr)) {
-			p->m[4][addr - page_4] = value;
+		} else if(within(page_8, addr)) {
+			p->m[4][addr - page_8] = value;
 			return;
 		}
+
+		/* EEPROM */
+		if(within(page_4, addr)) {
+			eeprom_write_word((uint16_t*)((addr - page_4) << 1), value);
+			return;
+		} else if(within(page_5, addr)) {
+			eeprom_write_word((uint16_t*)((addr - page_5) << 1), value);
+			return;
+		} else if(within(page_6, addr)) {
+			eeprom_write_word((uint16_t*)((addr - page_6) << 1), value);
+			return;
+		} else if(within(page_7, addr)) {
+			eeprom_write_word((uint16_t*)((addr - page_7) << 1), value);
+			return;
+		}
+
 	}
 
 	static int serial_getc_cb(void *file, int *no_data) {
