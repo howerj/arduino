@@ -5,10 +5,10 @@
 
 F_CPU = 16000000
 MCU = atmega328p
-MCU = atmega2560
+#MCU = atmega2560
 # 'arduino' for atmega328p, 'wiring' for atmega2560
 METHOD=arduino
-METHOD=wiring
+#METHOD=wiring
 PORT=/dev/ttyACM0
 PROGRAM_BAUD=115200
 BAUD=9600
@@ -51,7 +51,7 @@ CORE_OBJS    := ${CORE_OBJS:${LIBRARY_DIR}%=%}
 CORE_OBJS    := ${CORE_OBJS:avr-libc/%=%}
 
 TARGET=test
-CSRC := ${TARGET}.cpp image.c embed.c morse.c
+CSRC := ${TARGET}.cpp image.c embed.c morse.c led.c
 OBJS := ${CSRC:%.c=%.o}
 OBJS := ${OBJS:%.cpp=%.o}
 

@@ -4,7 +4,9 @@
  *
  * This project used the <https://github.com/howerj/embed> library, which
  * includes a Forth interpreter and a eForth image, to implement a simple
- * Forth system that communicates over the Arduino's serial connection. 
+ * Forth system that communicates over the Arduino's serial connection. The
+ * eForth interpreter is extended with a series of callbacks so the hardware
+ * can be quickly manipulated.
  *
  * @todo Add callbacks to manipulate the system peripherals (digital I/O,
  * analogue input, and serial).
@@ -13,6 +15,13 @@
  * @todo Speed up the interpreter, it is currently very slow. This could
  * be done by removing much of the indirection in the virtual machine,
  * and disabling the CRC check in the eForth image at start up.
+ * @todo Add an Morse code decoder, the project has an encoder, but it would be
+ * interesting to see if the eForth interpreter could gets its input from a
+ * Morse code key, with its output going to an LED/Buzzer.
+ * @todo Add code to use a simple LED for two way communications/as a light
+ * sensor - an LED is a PN junction that generates a small current when hit by
+ * light, this can be used as a crude light sensor and for two way
+ * communication (at about 300 bits per second).
  *
  * References:
  * - <https://www.arduino.cc/en/Reference/EEPROM>
@@ -53,6 +62,9 @@ static inline bool within(cell_t range, cell_t addr) {
 }
 
 extern "C" {
+	typedef void(*avr_reset_func)(void);
+	avr_reset_func avr_reset = NULL;
+
 	static int callback_cb(embed_t *h, void *param) {
 		(void)(param);
 		cell_t op = 0;
@@ -118,6 +130,9 @@ extern "C" {
 			delay(milliseconds);
 			break;
 		}
+		case 4: /* reset AVR */
+			avr_reset();
+			break;
 		default:
 			return 21;
 		}
@@ -329,7 +344,7 @@ void loop(void) {
 	while (!Serial && (Serial.available() == 0))
 		;
 
-	morse_print_string(2, "HELLO FORTH");
+	//morse_print_string(2, "HELLO FORTH");
 	Serial.write("\r\n");
 	Serial.println("starting...");
 	const int r = embed_vm(&h);
