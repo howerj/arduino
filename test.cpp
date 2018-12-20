@@ -69,17 +69,17 @@ extern "C" {
 		(void)(param);
 		cell_t op = 0;
 		int status = embed_pop(h, &op);
-		if(status != 0)
+		if (status != 0)
 			goto error;
-		switch(op) {
+		switch (op) {
 		case 0: /* Pin Mode */
 		{
 			uint16_t pin = 0, direction = 0;
 			status = embed_pop(h, &pin);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 			status = embed_pop(h, &direction);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 
 			Serial.write("\r\npin-mode: ");
@@ -94,7 +94,7 @@ extern "C" {
 		{
 			uint16_t pin = 0;
 			status = embed_pop(h, &pin);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 
 			Serial.write("\r\npin-read: ");
@@ -107,10 +107,10 @@ extern "C" {
 		{
 			uint16_t pin = 0, on = 0;
 			status = embed_pop(h, &pin);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 			status = embed_pop(h, &on);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 
 			Serial.write("\r\npin-set: ");
@@ -125,7 +125,7 @@ extern "C" {
 		{
 			uint16_t milliseconds = 0;
 			status = embed_pop(h, &milliseconds);
-			if(status != 0)
+			if (status != 0)
 				goto error;
 			delay(milliseconds);
 			break;
@@ -146,30 +146,30 @@ extern "C" {
 		const uint16_t blksz = embed_default_block_size >> 1;
 
 		/* RAM + ROM */
-		if(within(page_0, addr)) {
+		if (within(page_0, addr)) {
 			return p->m[0][addr];
-		} else if((addr >= PAGE_SIZE) && (addr < blksz)) {
+		} else if ((addr >= PAGE_SIZE) && (addr < blksz)) {
 			const uint16_t naddr = addr << 1;
 			const uint16_t lo    = pgm_read_byte(embed_default_block + naddr + 0);
 			const uint16_t hi    = pgm_read_byte(embed_default_block + naddr + 1);
 			return (hi<<8u) | lo;
-		} else if(within(blksz, addr)) {
+		} else if (within(blksz, addr)) {
 			return p->m[1][addr - blksz];
-		} else if(within(page_2, addr)) {
+		} else if (within(page_2, addr)) {
 			return p->m[2][addr - page_2];
-		} else if(within(page_3, addr)) {
+		} else if (within(page_3, addr)) {
 			return p->m[3][addr - page_3];
-		} else if(within(page_8, addr)) {
+		} else if (within(page_8, addr)) {
 			return p->m[4][addr - page_8];
 		}
 
-		if(within(page_4, addr)) {
+		if (within(page_4, addr)) {
 			return eeprom_read_word((uint16_t*)((addr - page_4) << 1));
-		} else if(within(page_5, addr)) {
+		} else if (within(page_5, addr)) {
 			return eeprom_read_word((uint16_t*)((addr - page_5) << 1));
-		} else if(within(page_6, addr)) {
+		} else if (within(page_6, addr)) {
 			return eeprom_read_word((uint16_t*)((addr - page_6) << 1));
-		} else if(within(page_7, addr)) {
+		} else if (within(page_7, addr)) {
 			return eeprom_read_word((uint16_t*)((addr - page_7) << 1));
 		}
 		
@@ -182,36 +182,36 @@ extern "C" {
 		const uint16_t blksz = embed_default_block_size >> 1;
 
 		/* RAM + ROM */
-		if(within(page_0, addr)) {
+		if (within(page_0, addr)) {
 			p->m[0][addr] = value;
 			return;
-		} else if((addr >= PAGE_SIZE) && (addr < blksz)) {
+		} else if ((addr >= PAGE_SIZE) && (addr < blksz)) {
 			/* ROM */
-		} else if(within(blksz, addr)) {
+		} else if (within(blksz, addr)) {
 			p->m[1][addr - blksz]   = value;
 			return;
-		} else if(within(page_2, addr)) {
+		} else if (within(page_2, addr)) {
 			p->m[2][addr - page_2] = value;
 			return;
-		} else if(within(page_3, addr)) {
+		} else if (within(page_3, addr)) {
 			p->m[3][addr - page_3] = value;
 			return;
-		} else if(within(page_8, addr)) {
+		} else if (within(page_8, addr)) {
 			p->m[4][addr - page_8] = value;
 			return;
 		}
 
 		/* EEPROM */
-		if(within(page_4, addr)) {
+		if (within(page_4, addr)) {
 			eeprom_write_word((uint16_t*)((addr - page_4) << 1), value);
 			return;
-		} else if(within(page_5, addr)) {
+		} else if (within(page_5, addr)) {
 			eeprom_write_word((uint16_t*)((addr - page_5) << 1), value);
 			return;
-		} else if(within(page_6, addr)) {
+		} else if (within(page_6, addr)) {
 			eeprom_write_word((uint16_t*)((addr - page_6) << 1), value);
 			return;
-		} else if(within(page_7, addr)) {
+		} else if (within(page_7, addr)) {
 			eeprom_write_word((uint16_t*)((addr - page_7) << 1), value);
 			return;
 		}
@@ -228,7 +228,7 @@ extern "C" {
 
 	static int serial_putc_cb(int ch, void *file) {
 		(void)file;
-		/*while(Serial.write(ch) != 1)
+		/*while (Serial.write(ch) != 1)
 			;*/
 		Serial.write(ch);
 		return ch;
@@ -239,15 +239,15 @@ extern "C" {
 #define MORSE_OUTPUT_PIN (7)
 
 static int morse_write_char(int method, char c) {
-	if(c != '.' && c != '_' && c != ' ')
+	if (c != '.' && c != '_' && c != ' ')
 		return -1;
 
-	if(method == 0) {
+	if (method == 0) {
 		Serial.write(c);
-	} else if(method == 1) {
+	} else if (method == 1) {
 		const int pin = MORSE_OUTPUT_PIN;
 		pinMode(pin, OUTPUT);
-		switch(c) {
+		switch (c) {
 		case '.':
 			digitalWrite(pin, HIGH);
 			delay(UNIT_DELAY_MS * MORSE_DOT_DELAY_MULTIPLIER);
@@ -263,7 +263,7 @@ static int morse_write_char(int method, char c) {
 			delay(UNIT_DELAY_MS * MORSE_SPACE_DELAY_MULTIPLIER);
 		}
 		
-	} else if(method == 2) {
+	} else if (method == 2) {
 		morse_write_char(0, c);
 		morse_write_char(1, c);
 	}
@@ -271,8 +271,8 @@ static int morse_write_char(int method, char c) {
 }
 
 int morse_write_spaces(int method, int count) {
-	for(int i = 0; i < count; i++)
-		if(morse_write_char(method, ' ') < 0)
+	for (int i = 0; i < count; i++)
+		if (morse_write_char(method, ' ') < 0)
 			return -1;
 	return count;
 }
@@ -281,26 +281,26 @@ int morse_write_spaces(int method, int count) {
 int morse_print_string(int method, const char *s) {
 	int r = 0;
 	unsigned char c = 0;
-	while((c = *s++)) {
-		if(c == ' ') {
-			if(morse_write_spaces(method, MORSE_SPACES_IN_WORD_SEPARATOR) < 0)
+	while ((c = *s++)) {
+		if (c == ' ') {
+			if (morse_write_spaces(method, MORSE_SPACES_IN_WORD_SEPARATOR) < 0)
 				return -1;
 			r += MORSE_SPACES_IN_WORD_SEPARATOR;
 		} else {
 			char buffer[10] = { 0 };
-			if(morse_encode_character(c, buffer, (sizeof buffer) - 1) < 0)
+			if (morse_encode_character(c, buffer, (sizeof buffer) - 1) < 0)
 				return -1;
 			char enc = 0;
 			const char *en = buffer;
-			while((enc = *en++)) {
-				if(morse_write_char(method, enc) < 0)
+			while ((enc = *en++)) {
+				if (morse_write_char(method, enc) < 0)
 					return -1;
-				if(morse_write_char(method, ' ') < 0)
+				if (morse_write_char(method, ' ') < 0)
 					return -1;
 				r += 2;
 			}
 			const int chsep = MORSE_SPACES_IN_CHAR_SEPARATOR - MORSE_SPACES_IN_ELEMENT_SEPARATOR;
-			if(morse_write_spaces(method, chsep) < 0)
+			if (morse_write_spaces(method, chsep) < 0)
 				return -1;
 			r += chsep;
 		}
@@ -333,7 +333,7 @@ void loop(void) {
 	h.o.options = EMBED_VM_RAW_TERMINAL;
 
 	Serial.println("loading image");
-	for(size_t i = 0; i < (PAGE_SIZE*2); i+=2) {
+	for (size_t i = 0; i < (PAGE_SIZE*2); i+=2) {
 		const uint16_t lo = pgm_read_byte(embed_default_block + i + 0);
 		const uint16_t hi = pgm_read_byte(embed_default_block + i + 1);
 		pages.m[0][i >> 1] = (hi<<8u) | lo;

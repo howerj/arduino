@@ -43,6 +43,8 @@ CORE_CPPSRC= \
  ${LIBRARY_DIR}WMath.cpp \
  ${LIBRARY_DIR}WString.cpp 
 
+.PRECIOUS: %.o
+
 CORE_COBJS   := ${CORE_CSRC:%.c=%.o}
 CORE_CXXOBJS := ${CORE_CPPSRC:%.cpp=%.o}
 
@@ -107,6 +109,5 @@ talk:
 	picocom -e b -b ${BAUD} ${PORT}
 
 clean:
-	rm -vf *.o *.a *.d *.elf *.eep *.hex
-	rm -vf *.d
+	rm -vf *.o *.a *.d *.elf *.eep *.hex *.d
 

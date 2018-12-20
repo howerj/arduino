@@ -161,23 +161,23 @@ static const PROGMEM char morse_table[MORSE_TABLE_COUNT][MORSE_CHARACTER_LENGTH]
 };
 
 static int morse_populated(const char *buffer, size_t length) {
-	if(!length || !buffer[0])
+	if (!length || !buffer[0])
 		return 0;
 	return 1;
 }
 
 int morse_encode_character(unsigned char c, char *buffer, size_t length) {
-	if(length < MORSE_CHARACTER_LENGTH)
+	if (length < MORSE_CHARACTER_LENGTH)
 		return -1;
-	if((c & 0x80))
+	if ((c & 0x80))
 		return -1;
 
-	for(size_t i = 0; i < length; i++) {
+	for (size_t i = 0; i < length; i++) {
 		char ch = pgm_read_byte(&(morse_table[c][i]));
 		buffer[i] = ch;
 	}
 	
-	if(!morse_populated(buffer, length))
+	if (!morse_populated(buffer, length))
 		return -1;
 	return 0;
 }
@@ -188,30 +188,30 @@ int morse_decode_character(const char *s, const char **endptr) {
 	char buf[16] = { 0 };
 	char c = 0;
 
-	if(endptr)
+	if (endptr)
 		*endptr = NULL;
 
-	while(i < (sizeof(buf) - 1)) {
+	while (i < (sizeof(buf) - 1)) {
 		size_t j = 0;
-		while((c = *s++)) {
+		while ((c = *s++)) {
 			j++;
-			if(isspace(c))
+			if (isspace(c))
 				continue;
 			else
 				break;
 		}
-		if((c != '.' && c != '_') || j > 2)
+		if ((c != '.' && c != '_') || j > 2)
 			break;
 		buf[i++] = c;
 	}
-	if(endptr)
+	if (endptr)
 		*endptr = s + i;
 
-	for(size_t k = 0; k < MORSE_TABLE_COUNT; k++) {
+	for (size_t k = 0; k < MORSE_TABLE_COUNT; k++) {
 		const morse_character_t *mc = &morse_table[k];
-		if(!morse_populated(mc))
+		if (!morse_populated(mc))
 			continue;
-		if(!strcmp(buf, mc->encoding))
+		if (!strcmp(buf, mc->encoding))
 			return k;
 	}
 	
@@ -238,7 +238,7 @@ void test_decode(FILE *out, const char *s) {
 }
 
 int main(int argc, char **argv) {
-	if(argc == 1) {
+	if (argc == 1) {
 		test_decode(stdout, " . _ ");
 		test_decode(stdout, " . _ _ ");
 		test_decode(stdout, " _ ");
@@ -248,13 +248,13 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	if(argc != 2) {
+	if (argc != 2) {
 		fprintf(stderr, "usage: %s string\n", argv[0]);
 		return -1;
 	}
 
 
-	if(morse_print_string(stdout, argv[1]) < 0)
+	if (morse_print_string(stdout, argv[1]) < 0)
 		return -1;
 	fputc('\n', stdout);
 	return 0;
