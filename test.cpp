@@ -25,18 +25,23 @@
  *
  * References:
  * - <https://www.arduino.cc/en/Reference/EEPROM>
- * - <https://www.arduino.cc/en/Tutorial/SoftwareSerialExample>
- * */
+ * - <https://www.arduino.cc/en/Tutorial/SoftwareSerialExample> */
 
 #include <Arduino.h>
 #include <HardwareSerial.h>
 #include <avr/eeprom.h>
 #include "embed.h"
 #include "morse.h"
+#include "led.h"
 
+#define VERBOSE   (1)
 #define PAGE_SIZE (128u)
 #define NPAGES    (5u)
+#define UNIT_DELAY_MS (200)
+#define MORSE_OUTPUT_PIN (7)
 
+static embed_t embed;
+static led_t led;
 static const int serial_baud = 9600;
 
 typedef struct {
@@ -61,9 +66,88 @@ static inline bool within(cell_t range, cell_t addr) {
 	return (addr >= range) && (addr < (range + PAGE_SIZE));
 }
 
+/**@todo change so this is non-blocking */
+static int morse_write_char(const int pin, const int method, const char c) {
+	if (c != '.' && c != '_' && c != ' ')
+		return -1;
+
+	switch (method) {
+	case 0:
+		Serial.write(c);
+		break;
+	case 1: 
+		pinMode(pin, OUTPUT);
+		switch (c) {
+		case '.':
+			digitalWrite(pin, HIGH);
+			delay(UNIT_DELAY_MS * MORSE_DOT_DELAY_MULTIPLIER);
+			digitalWrite(pin, LOW);
+			break;
+		case '_':
+			digitalWrite(pin, HIGH);
+			delay(UNIT_DELAY_MS * MORSE_DASH_DELAY_MULTIPLIER);
+			digitalWrite(pin, LOW);
+			break;
+		case ' ':
+			digitalWrite(pin, LOW);
+			delay(UNIT_DELAY_MS * MORSE_SPACE_DELAY_MULTIPLIER);
+		}
+		break;
+	case 2:
+	{
+		const int r1 = morse_write_char(pin, 0, c);
+		const int r2 = morse_write_char(pin, 1, c);
+		if (r1 < 0 || r2 < 0)
+			return -1;
+		break;
+	}
+	default:
+		return -1;
+	}
+	return 1;
+}
+
+static int morse_write_spaces(const int pin, const int method, const int count) {
+	for (int i = 0; i < count; i++)
+		if (morse_write_char(pin, method, ' ') < 0)
+			return -1;
+	return count;
+}
+
+/* 1 == LED, 0 == serial */
+int morse_print_string(const int pin, const int method, const char *s) {
+	int r = 0;
+	unsigned char c = 0;
+	while ((c = *s++)) {
+		if (c == ' ') {
+			if (morse_write_spaces(pin, method, MORSE_SPACES_IN_WORD_SEPARATOR) < 0)
+				return -1;
+			r += MORSE_SPACES_IN_WORD_SEPARATOR;
+		} else {
+			char buffer[10] = { 0 };
+			if (morse_encode_character(c, buffer, (sizeof buffer) - 1) < 0)
+				return -1;
+			char enc = 0;
+			const char *en = buffer;
+			while ((enc = *en++)) {
+				if (morse_write_char(pin, method, enc) < 0)
+					return -1;
+				if (morse_write_char(pin, method, ' ') < 0)
+					return -1;
+				r += 2;
+			}
+			const int chsep = MORSE_SPACES_IN_CHAR_SEPARATOR - MORSE_SPACES_IN_ELEMENT_SEPARATOR;
+			if (morse_write_spaces(pin, method, chsep) < 0)
+				return -1;
+			r += chsep;
+		}
+	}
+	return r;
+}
+
 extern "C" {
 	typedef void(*avr_reset_func)(void);
-	avr_reset_func avr_reset = NULL;
+	avr_reset_func avr_reset = NULL; // A bit of a hack.
 
 	static int callback_cb(embed_t *h, void *param) {
 		(void)(param);
@@ -75,30 +159,31 @@ extern "C" {
 		case 0: /* Pin Mode */
 		{
 			uint16_t pin = 0, direction = 0;
-			status = embed_pop(h, &pin);
-			if (status != 0)
+			if ((status = embed_pop(h, &pin)) != 0)
 				goto error;
-			status = embed_pop(h, &direction);
-			if (status != 0)
+			if ((status = embed_pop(h, &direction)) != 0)
 				goto error;
 
-			Serial.write("\r\npin-mode: ");
-			Serial.print(pin);
-			Serial.write('/');
-			Serial.println(direction);
+			if (VERBOSE > 2) {
+				Serial.write("\r\npin-mode: ");
+				Serial.print(pin);
+				Serial.write('/');
+				Serial.println(direction);
+			}
 
-			pinMode(pin, direction ? (direction & 0x8000 ? INPUT_PULLUP : INPUT) : OUTPUT);
+			pinMode(pin, direction ? ((direction & 0x8000) ? INPUT_PULLUP : INPUT) : OUTPUT);
 			break;
 		}
 		case 1: /* Read Pin */
 		{
 			uint16_t pin = 0;
-			status = embed_pop(h, &pin);
-			if (status != 0)
+			if ((status = embed_pop(h, &pin)) != 0)
 				goto error;
 
-			Serial.write("\r\npin-read: ");
-			Serial.println(pin);
+			if (VERBOSE > 2) {
+				Serial.write("\r\npin-read: ");
+				Serial.println(pin);
+			}
 
 			status = embed_push(h, digitalRead(pin) == HIGH ? -1 : 0);
 			break;
@@ -106,17 +191,17 @@ extern "C" {
 		case 2: /* Write Pin */
 		{
 			uint16_t pin = 0, on = 0;
-			status = embed_pop(h, &pin);
-			if (status != 0)
+			if ((status = embed_pop(h, &pin)) != 0)
 				goto error;
-			status = embed_pop(h, &on);
-			if (status != 0)
+			if ((status = embed_pop(h, &on)) != 0)
 				goto error;
 
-			Serial.write("\r\npin-set: ");
-			Serial.print(pin);
-			Serial.write('/');
-			Serial.println(on);
+			if (VERBOSE > 2) {
+				Serial.write("\r\npin-set: ");
+				Serial.print(pin);
+				Serial.write('/');
+				Serial.println(on);
+			}
 
 			digitalWrite(pin, on ? HIGH : LOW);
 			break;
@@ -124,14 +209,35 @@ extern "C" {
 		case 3: /* delay */
 		{
 			uint16_t milliseconds = 0;
-			status = embed_pop(h, &milliseconds);
-			if (status != 0)
+			if ((status = embed_pop(h, &milliseconds)) != 0)
 				goto error;
 			delay(milliseconds);
 			break;
 		}
 		case 4: /* reset AVR */
 			avr_reset();
+			break;
+		case 5: /* Read LED */
+		{ /* See led.c for a description of what this does */
+			led_t led;
+			memset(&led, 0, sizeof led);
+			uint16_t anode = 0, cathode = 0;
+			if ((status = embed_pop(h, &cathode)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &anode)) != 0)
+				goto error;
+			unsigned long r = led_read(&led);
+			embed_push(h, r);
+			embed_push(h, r >> 16);
+			break;
+		}
+		case 6: /* Read LED sensor loop */
+			while (1) {
+				Serial.print(led_read(&led));
+				Serial.print(" ");
+			}
+		case 7:
+			//morse_print_string();
 			break;
 		default:
 			return 21;
@@ -152,7 +258,7 @@ extern "C" {
 			const uint16_t naddr = addr << 1;
 			const uint16_t lo    = pgm_read_byte(embed_default_block + naddr + 0);
 			const uint16_t hi    = pgm_read_byte(embed_default_block + naddr + 1);
-			return (hi<<8u) | lo;
+			return (hi << 8u) | lo;
 		} else if (within(blksz, addr)) {
 			return p->m[1][addr - blksz];
 		} else if (within(page_2, addr)) {
@@ -235,121 +341,91 @@ extern "C" {
 	}
 }
 
-#define UNIT_DELAY_MS (200)
-#define MORSE_OUTPUT_PIN (7)
-
-static int morse_write_char(int method, char c) {
-	if (c != '.' && c != '_' && c != ' ')
-		return -1;
-
-	if (method == 0) {
-		Serial.write(c);
-	} else if (method == 1) {
-		const int pin = MORSE_OUTPUT_PIN;
-		pinMode(pin, OUTPUT);
-		switch (c) {
-		case '.':
-			digitalWrite(pin, HIGH);
-			delay(UNIT_DELAY_MS * MORSE_DOT_DELAY_MULTIPLIER);
-			digitalWrite(pin, LOW);
-			break;
-		case '_':
-			digitalWrite(pin, HIGH);
-			delay(UNIT_DELAY_MS * MORSE_DASH_DELAY_MULTIPLIER);
-			digitalWrite(pin, LOW);
-			break;
-		case ' ':
-			digitalWrite(pin, LOW);
-			delay(UNIT_DELAY_MS * MORSE_SPACE_DELAY_MULTIPLIER);
-		}
-		
-	} else if (method == 2) {
-		morse_write_char(0, c);
-		morse_write_char(1, c);
-	}
-	return 1;
+static int eForth_extend(embed_t *h) { 
+	if (embed_eval(h, 
+		"system +order\r\n"
+		": mode 0 vm ;\r\n"
+		": read 1 vm ;\r\n"
+		": write 2 vm ;\r\n"
+		/* ": delay 3 vm ;\r\n" */
+		/* ": reset 4 vm ;\r\n" */
+		/* ": led   5 vm ;\r\n" */
+		/* "system -order\r\n"*/
+		"cr\r\n"
+		) != 0)
+		goto fail;
+	return 0;
+fail:
+	Serial.println("eForth extension failed");
+	return -1;
 }
 
-int morse_write_spaces(int method, int count) {
-	for (int i = 0; i < count; i++)
-		if (morse_write_char(method, ' ') < 0)
-			return -1;
-	return count;
+static void eForth_opt_setup(embed_t *h, pages_t *p) {
+	h->o           =  embed_opt_default();
+	h->m           =  p;
+	h->o.get       =  serial_getc_cb;
+	h->o.put       =  serial_putc_cb;
+	h->o.read      =  rom_read_cb;
+	h->o.callback  =  callback_cb;
+	h->o.write     =  rom_write_cb;
+	h->o.options   =  EMBED_VM_RAW_TERMINAL;
 }
 
-/* 1 == LED, 0 == serial */
-int morse_print_string(int method, const char *s) {
-	int r = 0;
-	unsigned char c = 0;
-	while ((c = *s++)) {
-		if (c == ' ') {
-			if (morse_write_spaces(method, MORSE_SPACES_IN_WORD_SEPARATOR) < 0)
-				return -1;
-			r += MORSE_SPACES_IN_WORD_SEPARATOR;
-		} else {
-			char buffer[10] = { 0 };
-			if (morse_encode_character(c, buffer, (sizeof buffer) - 1) < 0)
-				return -1;
-			char enc = 0;
-			const char *en = buffer;
-			while ((enc = *en++)) {
-				if (morse_write_char(method, enc) < 0)
-					return -1;
-				if (morse_write_char(method, ' ') < 0)
-					return -1;
-				r += 2;
-			}
-			const int chsep = MORSE_SPACES_IN_CHAR_SEPARATOR - MORSE_SPACES_IN_ELEMENT_SEPARATOR;
-			if (morse_write_spaces(method, chsep) < 0)
-				return -1;
-			r += chsep;
-		}
+static void pages_load(pages_t *p, const /*PROGMEM*/ uint8_t *block, const size_t length) {
+	for (size_t i = 0; i < (PAGE_SIZE * 2) && i < length; i += 2) {
+		const uint16_t lo = pgm_read_byte(block + i + 0);
+		const uint16_t hi = pgm_read_byte(block + i + 1);
+		p->m[0][i >> 1] = (hi << 8u) | lo;
 	}
-	return r;
 }
 
 static void establish_contact(void) {
 	while (Serial.available() <= 0) {
-		Serial.println("eForth: awaiting connection");
+		Serial.println(F("eForth: awaiting connection"));
 		delay(300);
 	}
 }
 
+static void wait_for_key(void) {
+	Serial.println(F("(hit any key to continue)"));
+	while (!Serial && (Serial.available() == 0))
+		;
+}
+
 void setup(void) {
+	led.anode   = 4;
+	led.cathode = 5;
+	led_set(&led, 1);
+
 	Serial.begin(serial_baud);
-	while (!Serial); 
+	while (!Serial)
+		; 
 	establish_contact();
 }
 
 void loop(void) {
-	static embed_t h;
-	h.o = embed_opt_default();
-	h.m = &pages;
-	h.o.get = serial_getc_cb;
-	h.o.put = serial_putc_cb;
-	h.o.read = rom_read_cb;
-	h.o.callback = callback_cb;
-	h.o.write = rom_write_cb;
-	h.o.options = EMBED_VM_RAW_TERMINAL;
 
-	Serial.println("loading image");
-	for (size_t i = 0; i < (PAGE_SIZE*2); i+=2) {
-		const uint16_t lo = pgm_read_byte(embed_default_block + i + 0);
-		const uint16_t hi = pgm_read_byte(embed_default_block + i + 1);
-		pages.m[0][i >> 1] = (hi<<8u) | lo;
-	}
+	eForth_opt_setup(&embed, &pages);
 
-	Serial.println("(hit any key to continue)");
+	/*while (1) {
+		Serial.print(led_read(&led));
+		Serial.print(" ");
+		//delay(200);
+	}*/
 
-	while (!Serial && (Serial.available() == 0))
-		;
+	Serial.println(F("loading image"));
+	pages_load(&pages, embed_default_block, embed_default_block_size);
+	eForth_extend(&embed);
+	embed_reset(&embed);
+	wait_for_key();
 
-	//morse_print_string(2, "HELLO FORTH");
+	eForth_opt_setup(&embed, &pages);
+	//morse_print_string(MORSE_OUTPUT_PIN, 2, "HELLO FORTH");
 	Serial.write("\r\n");
-	Serial.println("starting...");
-	const int r = embed_vm(&h);
-	Serial.print("\r\ndone (r = ");
+	Serial.println(F("starting..."));
+	const int r = embed_vm(&embed);
+	Serial.print(F("\r\ndone (r = "));
 	Serial.print(r);
-	Serial.println(")");
+	Serial.println(F(")"));
 }
 

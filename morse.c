@@ -43,7 +43,9 @@
    QTH        My location is...
    QTH?       What is your location?
 
-   @todo Add a Morse code decoder */
+   @todo Add a Morse code decoder
+  
+  */
 #include "morse.h"
 #include <avr/pgmspace.h>
 #include <stdint.h>
