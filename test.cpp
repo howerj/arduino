@@ -34,15 +34,15 @@
 #include "morse.h"
 #include "led.h"
 
-#define VERBOSE   (1)
-#define PAGE_SIZE (128u)
-#define NPAGES    (5u)
-#define UNIT_DELAY_MS (200)
+#define VERBOSE          (1)
+#define PAGE_SIZE        (128u)
+#define NPAGES           (5u)
+#define UNIT_DELAY_MS    (200)
 #define MORSE_OUTPUT_PIN (7)
+#define SERIAL_BAUD      (115200) //(9600)
 
 static embed_t embed;
 static led_t led;
-static const int serial_baud = 9600;
 
 typedef struct {
 	cell_t m[NPAGES][PAGE_SIZE];
@@ -115,10 +115,11 @@ static int morse_write_spaces(const int pin, const int method, const int count) 
 }
 
 /* 1 == LED, 0 == serial */
-int morse_print_string(const int pin, const int method, const char *s) {
+static int morse_print_buffer(const int pin, const int method, const uint8_t *s, size_t length) {
 	int r = 0;
 	unsigned char c = 0;
-	while ((c = *s++)) {
+	for (size_t i = 0; i < length; i++) {
+		c = s[i];
 		if (c == ' ') {
 			if (morse_write_spaces(pin, method, MORSE_SPACES_IN_WORD_SEPARATOR) < 0)
 				return -1;
@@ -145,9 +146,33 @@ int morse_print_string(const int pin, const int method, const char *s) {
 	return r;
 }
 
+/*static int morse_print_string(const int pin, const int method, const char *s) {
+	return morse_print_buffer(pin, method, reinterpret_cast<const uint8_t*>(s), strlen(s));
+}*/
+
 extern "C" {
 	typedef void(*avr_reset_func)(void);
 	avr_reset_func avr_reset = NULL; // A bit of a hack.
+
+	static uint16_t *resolve(embed_t const * const h, cell_t addr) {
+		pages_t *p = (pages_t*)h->m;
+		const uint16_t blksz = embed_default_block_size >> 1;
+
+		if (within(page_0, addr)) {
+			return &p->m[0][addr];
+		} else if ((addr >= PAGE_SIZE) && (addr < blksz)) {
+			return NULL;
+		} else if (within(blksz, addr)) {
+			return &p->m[1][addr - blksz];
+		} else if (within(page_2, addr)) {
+			return &p->m[2][addr - page_2];
+		} else if (within(page_3, addr)) {
+			return &p->m[3][addr - page_3];
+		} else if (within(page_8, addr)) {
+			return &p->m[4][addr - page_8];
+		}
+		return NULL;
+	}
 
 	static int callback_cb(embed_t *h, void *param) {
 		(void)(param);
@@ -226,23 +251,57 @@ extern "C" {
 				goto error;
 			if ((status = embed_pop(h, &anode)) != 0)
 				goto error;
+			led.anode   = anode;
+			led.cathode = cathode;
 			unsigned long r = led_read(&led);
 			embed_push(h, r);
-			embed_push(h, r >> 16);
+			//embed_push(h, r >> 16);
 			break;
 		}
-		case 6: /* Read LED sensor loop */
+		case 6: /* Send byte */
+		{
+			led_t led;
+			memset(&led, 0, sizeof led);
+			uint16_t anode = 0, cathode = 0, byte = 0;
+			if ((status = embed_pop(h, &cathode)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &anode)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &byte)) != 0)
+				goto error;
+			led.anode   = anode;
+			led.cathode = cathode;
+			led_send(&led, byte);
+			break;
+		}
+		case 7: /* Read LED sensor loop */
 			while (1) {
 				Serial.print(led_read(&led));
 				Serial.print(" ");
 			}
-		case 7:
-			//morse_print_string();
+		case 8: /* Print a Morse code string */
+		{
+			uint16_t pin = 0, method = 0, string_location = 0;
+			if ((status = embed_pop(h, &pin)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &method)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &string_location)) != 0)
+				goto error;
+			/**@bug morse_print_buffer needs to be rewritten so it
+			 * uses the correct read macro depending on whether the
+			 * string is in EEPROM, RAM or Flash */
+
+			/* : x $" hello" ; x 2 4 8 system +order vm */
+			uint8_t *string = reinterpret_cast<uint8_t *>(resolve(h, string_location >> 1));
+			if (!string)
+				return 1;
+			morse_print_buffer(pin, method, string + 1, *string);
 			break;
+		}
 		default:
 			return 21;
 		}
-
 		error:
 			return status;
 	}
@@ -321,7 +380,6 @@ extern "C" {
 			eeprom_write_word((uint16_t*)((addr - page_7) << 1), value);
 			return;
 		}
-
 	}
 
 	static int serial_getc_cb(void *file, int *no_data) {
@@ -341,22 +399,26 @@ extern "C" {
 	}
 }
 
+/**@todo bake this into the core image instead of defining things here, this
+ * saves on space and execution time.  */
 static int eForth_extend(embed_t *h) { 
 	if (embed_eval(h, 
 		"system +order\r\n"
-		": mode 0 vm ;\r\n"
-		": read 1 vm ;\r\n"
-		": write 2 vm ;\r\n"
+		// ": mode 0 vm ;\r\n"
+		// ": read 1 vm ;\r\n"
+		// ": write 2 vm ;\r\n"
 		/* ": delay 3 vm ;\r\n" */
 		/* ": reset 4 vm ;\r\n" */
-		/* ": led   5 vm ;\r\n" */
+		": rx  4 5  5 vm ;\r\n" 
+		": tx  4 5  6 vm ;\r\n" 
+		": leds 7 vm ;\r\n" 
 		/* "system -order\r\n"*/
 		"cr\r\n"
 		) != 0)
 		goto fail;
 	return 0;
 fail:
-	Serial.println("eForth extension failed");
+	Serial.println(F("eForth extension failed"));
 	return -1;
 }
 
@@ -397,29 +459,21 @@ void setup(void) {
 	led.cathode = 5;
 	led_set(&led, 1);
 
-	Serial.begin(serial_baud);
+	Serial.begin(SERIAL_BAUD);
 	while (!Serial)
 		; 
-	establish_contact();
-}
-
-void loop(void) {
-
 	eForth_opt_setup(&embed, &pages);
-
-	/*while (1) {
-		Serial.print(led_read(&led));
-		Serial.print(" ");
-		//delay(200);
-	}*/
-
 	Serial.println(F("loading image"));
 	pages_load(&pages, embed_default_block, embed_default_block_size);
 	eForth_extend(&embed);
 	embed_reset(&embed);
+	eForth_opt_setup(&embed, &pages);
+	establish_contact();
+}
+
+void loop(void) {
 	wait_for_key();
 
-	eForth_opt_setup(&embed, &pages);
 	//morse_print_string(MORSE_OUTPUT_PIN, 2, "HELLO FORTH");
 	Serial.write("\r\n");
 	Serial.println(F("starting..."));

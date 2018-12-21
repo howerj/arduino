@@ -11,7 +11,7 @@ METHOD=arduino
 #METHOD=wiring
 PORT=/dev/ttyACM0
 PROGRAM_BAUD=115200
-BAUD=9600
+BAUD=115200
 
 ARDUINO_DIR = /usr/share/arduino/
 CC      = ${ARDUINO_DIR}hardware/tools/avr/bin/avr-gcc
@@ -100,7 +100,10 @@ core.a: ${CORE_OBJS}
 %.hex: %.elf %.eep
 	${OBJCOPY} -O ihex -R .eeprom $< $@
 
-build: ${TARGET}.hex 
+%.bin: %.hex
+	${OBJCOPY} -I ihex $< -O binary $@
+
+build: ${TARGET}.hex ${TARGET}.bin
 
 mkdebug:
 	@echo ${CORE_OBJS}

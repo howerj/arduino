@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 typedef enum {
 	LED_MODE_EMIT_E,
 	LED_MODE_REVERSE_BIAS_E,
@@ -18,6 +20,8 @@ typedef struct {
 
 int led_set(led_t *l, const int on);
 unsigned long led_read(led_t *l);
+int led_send(led_t *l, const uint8_t b);
+int led_set_string(led_t *l, const char *s);
 
 #ifdef __cplusplus
 }

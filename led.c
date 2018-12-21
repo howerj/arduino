@@ -1,12 +1,15 @@
-/* LED manipulation routines
+/**@file led.c
+ * @license MIT
+ * @author Richard James Howe
+ * @brief Routines for using an Light Emitting Diode as a simple
+ * light *sensor*, and for bidirectional communication. This is a
+ * work in progress.
  *
  * TODO:
  * - Using an LED as a light sensor
  * - Two way communication using an LED
  * - Change so this is non-blocking, a state-machine should
  *   control this.
- *
- *
  *
  * This LED controller uses two I/O pins so an LED can be used
  * as both an output, and as a light sensor.
@@ -17,11 +20,22 @@
  * Discharge:     0v   --- (+) LED (-) ---- Resistor (1k) -- IN
  *
  * *Circuit might need changing (input impedance too high/or input
- * floating high).
- *
- */
+ * floating high/too sensitive to its surroundings).  */
 #include "led.h"
 #include <Arduino.h>
+
+/* Discharge in dark a takes about 16,000 us, in bright LED light,
+ * about 2000 us, that is using the LEDs and resistors that I have,
+ * the system is sensitive to extra capacitances/resistances. A
+ * different set of timings would be useful for sensing ambient
+ * light levels as opposed to communication. These values would also
+ * benefit from calibration. */
+
+#define TX_MARK_US   (1000uL)
+#define TX_SPACE_US   (500uL)
+#define TX_PERIOD_US (5000uL)
+#define RX_CHARGE_US (100uL)
+#define RX_SAMPLE_US (2uL * 1000uL)
 
 static int led_mode(led_t *l, led_mode_e mode) {
 	switch (mode) {
@@ -49,7 +63,6 @@ static int led_mode(led_t *l, led_mode_e mode) {
 	return 0;
 }
 
-
 int led_set(led_t *l, const int on) {
 	return led_mode(l, on ? LED_MODE_EMIT_E : LED_MODE_REVERSE_BIAS_E);
 }
@@ -71,9 +84,9 @@ static int timer_init(timer_t *t) {
 	return 0;
 }
 
-static int timer_expired(timer_t *t, unsigned long interval_in_milliseconds) {
+static int timer_expired(timer_t *t, unsigned long interval_in_microseconds) {
 	t->current = micros();
-	if ((t->current - t->prev) > (1000uL * interval_in_milliseconds)) {
+	if ((t->current - t->prev) > (interval_in_microseconds)) {
 		t->prev = t->current;
 		return 1;
 	}
@@ -82,15 +95,38 @@ static int timer_expired(timer_t *t, unsigned long interval_in_milliseconds) {
 
 unsigned long led_read(led_t *l) {
 	led_mode(l, LED_MODE_REVERSE_BIAS_E); /* charge LED */
-	delay(40 /* 1 ms */);
+	delayMicroseconds(RX_CHARGE_US);
 	led_mode(l, LED_MODE_DISCHARGE_E);
 	timer_t t;
 	timer_init(&t);
-	int r;
-	while (!timer_expired(&t, 40 /* ms */) && (r = led_read_pin(l)))
+	while (!timer_expired(&t, RX_SAMPLE_US) && led_read_pin(l))
 		;
-	led_mode(l, LED_MODE_EMIT_E);
-	//delay(10);
 	return t.current - t.start;
+}
+
+static int led_send_bit(led_t *l, int on) {
+	unsigned long delay_us = on ? TX_MARK_US : TX_SPACE_US;
+	led_mode(l, LED_MODE_EMIT_E);
+	delayMicroseconds(delay_us);
+	led_mode(l, LED_MODE_REVERSE_BIAS_E);
+	delayMicroseconds(TX_PERIOD_US - delay_us);
+	return 0;
+}
+
+int led_send(led_t *l, uint8_t b) {
+	for (size_t i = 0; i < 8; i++) {
+		if (led_send_bit(l, b & 1) < 0)
+			return -1;
+		b >>= 1;
+	}
+	return 0;
+}
+
+int led_set_string(led_t *l, const char *s) {
+	int ch = 0;
+	while ((ch = *s++))
+		if (led_send(l, ch) < 0)
+			return -1;
+	return 0;
 }
 
