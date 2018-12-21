@@ -253,9 +253,9 @@ extern "C" {
 				goto error;
 			led.anode   = anode;
 			led.cathode = cathode;
-			unsigned long r = led_read(&led);
+			led.sensor  = &led_sensor_communications;
+			unsigned r = led_read(&led);
 			embed_push(h, r);
-			//embed_push(h, r >> 16);
 			break;
 		}
 		case 6: /* Send byte */
@@ -271,12 +271,26 @@ extern "C" {
 				goto error;
 			led.anode   = anode;
 			led.cathode = cathode;
+			led.sensor  = &led_sensor_communications;
 			led_send(&led, byte);
 			break;
 		}
 		case 7: /* Read LED sensor loop */
+redo:
 			while (1) {
-				Serial.print(led_read(&led));
+				unsigned r[8] = { 0 };
+				uint8_t b = 0;
+				for (size_t i = 0; i < 8; i++)
+					r[i] = led_read(&led);
+				for (size_t i = 0; i < 8; i++) { // @todo make a proper decoder!
+					if (r[i] < 1900)
+						continue;
+					else if (r[i] < 3900)
+						b |= 1u << i;
+					else
+						goto redo;
+				}
+				Serial.print(b, HEX);
 				Serial.print(" ");
 			}
 		case 8: /* Print a Morse code string */
@@ -297,6 +311,24 @@ extern "C" {
 			if (!string)
 				return 1;
 			morse_print_buffer(pin, method, string + 1, *string);
+			break;
+		}
+		case 9: /* Read LED light level */
+		{ /* See led.c for a description of what this does */
+			led_t led;
+			memset(&led, 0, sizeof led);
+			uint16_t anode = 0, cathode = 0;
+			if ((status = embed_pop(h, &cathode)) != 0)
+				goto error;
+			if ((status = embed_pop(h, &anode)) != 0)
+				goto error;
+			led.anode   = anode;
+			led.cathode = cathode;
+			led.sensor  = &led_sensor_light_level;
+			unsigned long t = 0;
+			for (size_t i = 0; i < 8; i++)
+				t = (t + led_read(&led)) / 2uL;
+			embed_push(h, t / 16u);
 			break;
 		}
 		default:
@@ -412,6 +444,7 @@ static int eForth_extend(embed_t *h) {
 		": rx  4 5  5 vm ;\r\n" 
 		": tx  4 5  6 vm ;\r\n" 
 		": leds 7 vm ;\r\n" 
+		": light 4 5 9 vm ;\r\n" 
 		/* "system -order\r\n"*/
 		"cr\r\n"
 		) != 0)
@@ -443,20 +476,22 @@ static void pages_load(pages_t *p, const /*PROGMEM*/ uint8_t *block, const size_
 
 static void establish_contact(void) {
 	while (Serial.available() <= 0) {
-		Serial.println(F("eForth: awaiting connection"));
-		delay(300);
+		led_send(&led, 0x55);
+		//Serial.println(F("eForth: awaiting connection"));
+		//delay(300);
 	}
 }
 
 static void wait_for_key(void) {
 	Serial.println(F("(hit any key to continue)"));
 	while (!Serial && (Serial.available() == 0))
-		;
+		led_send(&led, 0xAA);
 }
 
 void setup(void) {
 	led.anode   = 4;
 	led.cathode = 5;
+	led.sensor  = &led_sensor_communications;
 	led_set(&led, 1);
 
 	Serial.begin(SERIAL_BAUD);
@@ -473,8 +508,6 @@ void setup(void) {
 
 void loop(void) {
 	wait_for_key();
-
-	//morse_print_string(MORSE_OUTPUT_PIN, 2, "HELLO FORTH");
 	Serial.write("\r\n");
 	Serial.println(F("starting..."));
 	const int r = embed_vm(&embed);

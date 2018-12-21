@@ -10,6 +10,7 @@
  * - Two way communication using an LED
  * - Change so this is non-blocking, a state-machine should
  *   control this.
+ * - Add a PWM mode for emitting mode?
  *
  * This LED controller uses two I/O pins so an LED can be used
  * as both an output, and as a light sensor.
@@ -31,13 +32,23 @@
  * light levels as opposed to communication. These values would also
  * benefit from calibration. */
 
-#define TX_MARK_US   (1000uL)
-#define TX_SPACE_US   (500uL)
-#define TX_PERIOD_US (5000uL)
-#define RX_CHARGE_US (100uL)
-#define RX_SAMPLE_US (2uL * 1000uL)
+const led_sensor_t led_sensor_communications = {
+	.tx_mark_us   = 4000,
+	.tx_space_us  = 2000,
+	.tx_period_us = 5000,
+	.rx_charge_us = 200,
+	.rx_sample_us = 4800,
+};
 
-static int led_mode(led_t *l, led_mode_e mode) {
+const led_sensor_t led_sensor_light_level = {
+	.tx_mark_us   = 1000,
+	.tx_space_us  = 500,
+	.tx_period_us = 5000,
+	.rx_charge_us = 2000,
+	.rx_sample_us = 30000,
+};
+
+int led_mode(led_t *l, led_mode_e mode) {
 	switch (mode) {
 	case LED_MODE_EMIT_E:
 		pinMode(l->anode,   OUTPUT);
@@ -93,23 +104,25 @@ static int timer_expired(timer_t *t, unsigned long interval_in_microseconds) {
 	return 0;
 }
 
-unsigned long led_read(led_t *l) {
+unsigned led_read(led_t *l) {
 	led_mode(l, LED_MODE_REVERSE_BIAS_E); /* charge LED */
-	delayMicroseconds(RX_CHARGE_US);
+	delayMicroseconds(l->sensor->rx_charge_us);
 	led_mode(l, LED_MODE_DISCHARGE_E);
 	timer_t t;
 	timer_init(&t);
-	while (!timer_expired(&t, RX_SAMPLE_US) && led_read_pin(l))
+	while (!timer_expired(&t, l->sensor->rx_sample_us) && led_read_pin(l))
 		;
-	return t.current - t.start;
+	unsigned r = t.current - t.start;
+	delayMicroseconds(l->sensor->rx_sample_us - r);
+	return r;
 }
 
 static int led_send_bit(led_t *l, int on) {
-	unsigned long delay_us = on ? TX_MARK_US : TX_SPACE_US;
+	unsigned long delay_us = on ? l->sensor->tx_mark_us : l->sensor->tx_space_us;
 	led_mode(l, LED_MODE_EMIT_E);
 	delayMicroseconds(delay_us);
 	led_mode(l, LED_MODE_REVERSE_BIAS_E);
-	delayMicroseconds(TX_PERIOD_US - delay_us);
+	delayMicroseconds(l->sensor->tx_period_us - delay_us);
 	return 0;
 }
 
@@ -122,7 +135,7 @@ int led_send(led_t *l, uint8_t b) {
 	return 0;
 }
 
-int led_set_string(led_t *l, const char *s) {
+int led_send_string(led_t *l, const char *s) {
 	int ch = 0;
 	while ((ch = *s++))
 		if (led_send(l, ch) < 0)
