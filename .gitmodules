@@ -1,0 +1,3 @@
+[submodule "embed"]
+	path = embed
+	url = https://github.com/howerj/embed

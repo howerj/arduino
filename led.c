@@ -23,6 +23,7 @@
  * *Circuit might need changing (input impedance too high/or input
  * floating high/too sensitive to its surroundings).  */
 #include "led.h"
+#include <assert.h>
 #include <Arduino.h>
 
 /* Discharge in dark a takes about 16,000 us, in bright LED light,
@@ -48,7 +49,39 @@ const led_sensor_t led_sensor_light_level = {
 	.rx_sample_us = 30000,
 };
 
+typedef struct {
+	unsigned long start, prev, current;
+} timer_t;
+
+static int timer_init(timer_t *t) {
+	assert(l);
+	t->prev    = micros();
+	t->start   = t->prev;
+	t->current = t->prev;
+	return 0;
+}
+
+static int timer_expired(timer_t *t, const unsigned long interval_in_microseconds) {
+	assert(l);
+	t->current = micros();
+	if ((t->current - t->prev) > interval_in_microseconds) {
+		t->prev = t->current;
+		return 1;
+	}
+	return 0;
+}
+
+static int parity(unsigned v) {
+	int p = 0;
+	while (v) {
+		p = !p;
+		v = v & (v - 1);
+	}
+	return p;
+}
+
 int led_mode(led_t *l, led_mode_e mode) {
+	assert(l);
 	switch (mode) {
 	case LED_MODE_EMIT_E:
 		pinMode(l->anode,   OUTPUT);
@@ -75,36 +108,19 @@ int led_mode(led_t *l, led_mode_e mode) {
 }
 
 int led_set(led_t *l, const int on) {
+	assert(l);
 	return led_mode(l, on ? LED_MODE_EMIT_E : LED_MODE_REVERSE_BIAS_E);
 }
 
 static int led_read_pin(led_t *l) {
+	assert(l);
 	if (l->mode != LED_MODE_DISCHARGE_E)
 		return -1;
 	return digitalRead(l->cathode) == HIGH ? 1 : 0;
 }
 
-typedef struct {
-	unsigned long start, prev, current;
-} timer_t;
-
-static int timer_init(timer_t *t) {
-	t->prev    = micros();
-	t->start   = t->prev;
-	t->current = t->prev;
-	return 0;
-}
-
-static int timer_expired(timer_t *t, unsigned long interval_in_microseconds) {
-	t->current = micros();
-	if ((t->current - t->prev) > (interval_in_microseconds)) {
-		t->prev = t->current;
-		return 1;
-	}
-	return 0;
-}
-
 unsigned led_read(led_t *l) {
+	assert(l);
 	led_mode(l, LED_MODE_REVERSE_BIAS_E); /* charge LED */
 	delayMicroseconds(l->sensor->rx_charge_us);
 	led_mode(l, LED_MODE_DISCHARGE_E);
@@ -118,6 +134,7 @@ unsigned led_read(led_t *l) {
 }
 
 static int led_send_bit(led_t *l, int on) {
+	assert(l);
 	unsigned long delay_us = on ? l->sensor->tx_mark_us : l->sensor->tx_space_us;
 	led_mode(l, LED_MODE_EMIT_E);
 	delayMicroseconds(delay_us);
@@ -127,6 +144,7 @@ static int led_send_bit(led_t *l, int on) {
 }
 
 int led_send(led_t *l, uint8_t b) {
+	assert(l);
 	for (size_t i = 0; i < 8; i++) {
 		if (led_send_bit(l, b & 1) < 0)
 			return -1;
@@ -136,6 +154,8 @@ int led_send(led_t *l, uint8_t b) {
 }
 
 int led_send_string(led_t *l, const char *s) {
+	assert(l);
+	assert(s);
 	int ch = 0;
 	while ((ch = *s++))
 		if (led_send(l, ch) < 0)

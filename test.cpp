@@ -13,8 +13,7 @@
  * @todo Allow sections of memory to be stored to flash with a 'embed_sgetc_cb'
  * @todo Yield interpreter when there is no input so we can do other work
  * @todo Speed up the interpreter, it is currently very slow. This could
- * be done by removing much of the indirection in the virtual machine,
- * and disabling the CRC check in the eForth image at start up.
+ * be done by removing much of the indirection in the virtual machine.
  * @todo Add an Morse code decoder, the project has an encoder, but it would be
  * interesting to see if the eForth interpreter could gets its input from a
  * Morse code key, with its output going to an LED/Buzzer.
@@ -33,6 +32,8 @@
 #include "embed.h"
 #include "morse.h"
 #include "led.h"
+#include "Streaming.h"
+#include <assert.h>
 
 #define VERBOSE          (1)
 #define PAGE_SIZE        (128u)
@@ -116,6 +117,7 @@ static int morse_write_spaces(const int pin, const int method, const int count) 
 
 /* 1 == LED, 0 == serial */
 static int morse_print_buffer(const int pin, const int method, const uint8_t *s, size_t length) {
+	assert(s);
 	int r = 0;
 	unsigned char c = 0;
 	for (size_t i = 0; i < length; i++) {
@@ -188,14 +190,8 @@ extern "C" {
 				goto error;
 			if ((status = embed_pop(h, &direction)) != 0)
 				goto error;
-
-			if (VERBOSE > 2) {
-				Serial.write("\r\npin-mode: ");
-				Serial.print(pin);
-				Serial.write('/');
-				Serial.println(direction);
-			}
-
+			if (VERBOSE > 2)
+				Serial << F("\r\npin-mode: ") << pin << F("/") << direction << F("\r\n");
 			pinMode(pin, direction ? ((direction & 0x8000) ? INPUT_PULLUP : INPUT) : OUTPUT);
 			break;
 		}
@@ -204,12 +200,8 @@ extern "C" {
 			uint16_t pin = 0;
 			if ((status = embed_pop(h, &pin)) != 0)
 				goto error;
-
-			if (VERBOSE > 2) {
-				Serial.write("\r\npin-read: ");
-				Serial.println(pin);
-			}
-
+			if (VERBOSE > 2)
+				Serial << F("\r\npin-read: ") << pin << F("\r\n");
 			status = embed_push(h, digitalRead(pin) == HIGH ? -1 : 0);
 			break;
 		}
@@ -220,14 +212,8 @@ extern "C" {
 				goto error;
 			if ((status = embed_pop(h, &on)) != 0)
 				goto error;
-
-			if (VERBOSE > 2) {
-				Serial.write("\r\npin-set: ");
-				Serial.print(pin);
-				Serial.write('/');
-				Serial.println(on);
-			}
-
+			if (VERBOSE > 2)
+				Serial << F("\r\npin-set: ") << pin << F("/") << on << F("\r\n");
 			digitalWrite(pin, on ? HIGH : LOW);
 			break;
 		}
@@ -283,9 +269,9 @@ redo:
 				for (size_t i = 0; i < 8; i++)
 					r[i] = led_read(&led);
 				for (size_t i = 0; i < 8; i++) { // @todo make a proper decoder!
-					if (r[i] < 1900)
+					if (r[i] < 2200)
 						continue;
-					else if (r[i] < 3900)
+					else if (r[i] < 4400)
 						b |= 1u << i;
 					else
 						goto redo;
@@ -434,6 +420,7 @@ redo:
 /**@todo bake this into the core image instead of defining things here, this
  * saves on space and execution time.  */
 static int eForth_extend(embed_t *h) { 
+	assert(h);
 	if (embed_eval(h, 
 		"system +order\r\n"
 		// ": mode 0 vm ;\r\n"
@@ -456,6 +443,8 @@ fail:
 }
 
 static void eForth_opt_setup(embed_t *h, pages_t *p) {
+	assert(h);
+	assert(p);
 	h->o           =  embed_opt_default();
 	h->m           =  p;
 	h->o.get       =  serial_getc_cb;
@@ -467,6 +456,8 @@ static void eForth_opt_setup(embed_t *h, pages_t *p) {
 }
 
 static void pages_load(pages_t *p, const /*PROGMEM*/ uint8_t *block, const size_t length) {
+	assert(p);
+	assert(block);
 	for (size_t i = 0; i < (PAGE_SIZE * 2) && i < length; i += 2) {
 		const uint16_t lo = pgm_read_byte(block + i + 0);
 		const uint16_t hi = pgm_read_byte(block + i + 1);
@@ -475,17 +466,20 @@ static void pages_load(pages_t *p, const /*PROGMEM*/ uint8_t *block, const size_
 }
 
 static void establish_contact(void) {
+	unsigned i = 0;
+	Serial.println(F("eForth: awaiting connection"));
 	while (Serial.available() <= 0) {
-		led_send(&led, 0x55);
+		led_send(&led, i++);
 		//Serial.println(F("eForth: awaiting connection"));
 		//delay(300);
 	}
 }
 
 static void wait_for_key(void) {
+	unsigned i = 0;
 	Serial.println(F("(hit any key to continue)"));
 	while (!Serial && (Serial.available() == 0))
-		led_send(&led, 0xAA);
+		led_send(&led, i++);
 }
 
 void setup(void) {
@@ -508,11 +502,8 @@ void setup(void) {
 
 void loop(void) {
 	wait_for_key();
-	Serial.write("\r\n");
-	Serial.println(F("starting..."));
+	Serial << F("\r\nstarting...");
 	const int r = embed_vm(&embed);
-	Serial.print(F("\r\ndone (r = "));
-	Serial.print(r);
-	Serial.println(F(")"));
+	Serial << F("\r\ndone (r = ") << r << F(")\r\n");
 }
 
